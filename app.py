@@ -27,15 +27,43 @@ def whatsapp_webhook():
     # 1) lire le profil JSON
     profile = load_profile()
 
-    # 2) préparer infos externes si utiles
+       # 2) préparer infos externes si utiles
     extra = ""
     low = incoming_msg.lower()
-    if "météo" in low or "meteo" in low or "temps" in low:
+
+    # Météo
+    if any(w in low for w in ["météo", "meteo", "temps"]):
         extra += get_weather() + "\n"
-    if any(w in low for w in ["score", "match", "résultat", "resultat", "basket", "foot", "nba", "ligue 1"]):
-        s = get_latest_results()
-        if s:
-            extra += s
+
+    # Sports : compréhension simple d'intention + équipe
+    from lanai_sports import (
+        foot_next_game, foot_last_result,
+        basket_next_game, basket_last_result,
+        get_latest_results
+    )
+
+    # Team hints
+    team = None
+    is_next = any(w in low for w in ["prochain", "prochaine", "next"])
+    is_last = any(w in low for w in ["dernier", "dernière", "resultat", "résultat"])
+
+    if "psg" in low or "paris" in low:
+        team = "psg"
+        if is_next:
+            extra += foot_next_game(team) or ""
+        elif is_last or "score" in low:
+            extra += foot_last_result(team) or ""
+    elif "lakers" in low or "los angeles" in low:
+        team = "lakers"
+        if is_next:
+            extra += basket_next_game(team) or ""
+        elif is_last or "score" in low:
+            extra += basket_last_result(team) or ""
+
+    # Si demande sport générique (sans équipe), on peut mettre un résumé (optionnel)
+    if not team and any(w in low for w in ["score", "match", "résultat", "resultat", "basket", "foot", "nba", "ligue 1"]):
+        extra += get_latest_results() or ""
+
 
     # 3) demander la réponse à GPT‑4
     answer = generate_response(incoming_msg, profile, extra_info_text=extra)
